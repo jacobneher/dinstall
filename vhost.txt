@@ -1,0 +1,11 @@
+
+<VirtualHost *:80>
+    DocumentRoot "/var/www/html/{{directory}}"
+    ServerName {{url}}.local
+    ServerAlias {{url}}.lc
+
+    suPHP_Engine on
+    suPHP_UserGroup admin admin
+    AddHandler x-httpd-php .php .php3 .php4 .php5
+    suPHP_AddHandler x-httpd-php
+</VirtualHost>
