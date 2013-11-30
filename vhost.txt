@@ -1,8 +1,8 @@
 
 <VirtualHost *:80>
-    DocumentRoot "/var/www/html/{{directory}}"
-    ServerName {{url}}.local
-    ServerAlias {{url}}.lc
+    DocumentRoot "{{DIRECTORY}}"
+    ServerName {{URL}}.local
+    ServerAlias {{URL}}.lc
 
     suPHP_Engine on
     suPHP_UserGroup admin admin
