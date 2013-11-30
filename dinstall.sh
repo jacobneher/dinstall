@@ -8,6 +8,8 @@
 #################################################################################################################
 
 ##### CONFIGURABLE DEFAULTS
+# www root path
+www_root=/var/www/html
 # The location of the file that holds the template vhost configuration
 vhost_template=/var/www/scripts/dinstall/vhost.txt
 # The location of where vhost records are stored on the system
@@ -41,6 +43,12 @@ drupal_dest=.
 
 
 ##### PARSE ARGUMENTS
+if [[ "$1" != "" ]]; then
+  drupal_dest=${www_root}/${1}
+  # We need to call shift so that we can get any other arguments sent in
+  shift;
+fi
+
 while [ "$1" != "" ]; do
   case $1 in
     -h | --help )
@@ -58,10 +66,6 @@ while [ "$1" != "" ]; do
     -dm* | --drushmake* )
       drush_makefile=$(expr match "$1" '(?:-dm|--drushmake)="{0,1}\(.*\)"{0,1}')
       ;;
-    -dest* | --destination* )
-      drupal_dest=$(expr match "$1" '(?:-dest|--destination)="{0,1}\(.*\)"{0,1}')
-      user_dest=1
-      ;;
     -sn* | --site-name* )
       site_name=$(expr match "$1" '(?:-sn|--site-name)="{0,1}\(.*\)"{0,1}')
       ;;
@@ -77,7 +81,8 @@ while [ "$1" != "" ]; do
     -d | --defaults )
       all_defaults=1
       ;;
-  esac
+  esac;
+  # We need to call shift so that we can get any other arguments sent in
   shift
 done
 
