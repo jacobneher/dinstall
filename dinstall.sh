@@ -1,17 +1,31 @@
 #!/bin/bash
 
 ##   VERSION: 0.1
-#######################################################################
+#################################################################################################################
 # NOTES
-# The user running this script must be able to write to the vhost file!
+# The user running this script must be able to write to the vhost file (location of vhost_file variable below)!
 #
-#######################################################################
+#################################################################################################################
 
 ##### CONFIGURABLE DEFAULTS
-# Set the location of the file that holds the template vhost configuration
+# The location of the file that holds the template vhost configuration
 vhost_template=/var/www/scripts/dinstall/vhost.txt
-# Set the location of where vhost records are stored on the system
+# The location of where vhost records are stored on the system
 vhost_file=/etc/httpd/vhosts.d/sites.conf
+# The location of the database (more than likely this will be localhost)
+db_loc=localhost
+# The root username for the database
+db_root_user=root
+# The root password for the database
+db_root_pass=blue5.houses
+# The location of the drushmake file
+drush_makefile=/var/www/drush-makefiles/bedrock_make/bedrock.make
+# The name of the profile to use
+profile_name=bedrock
+# The default administration username to use for the Drupal site
+site_admin_acct=admin
+# The default administration password to use for the Drupal site
+site_admin_pass=Jd4ms!
 
 
 ##########################################################################################
@@ -22,15 +36,8 @@ vhost_file=/etc/httpd/vhosts.d/sites.conf
 display_help=0
 user_dest=0
 all_defaults=0
-no_vhost=0
-db_user=root
-db_root_pass=blue5.houses
-db_pass=blue5.houses
-db_loc=localhost
-drush_makefile=/var/www/drush-makefiles/bedrock_make/bedrock.make
+create_vhost=1
 drupal_dest=.
-site_acct=admin
-site_pass=Jd4ms!
 
 
 ##### PARSE ARGUMENTS
@@ -46,7 +53,7 @@ while [ "$1" != "" ]; do
       db_user=$(expr match "$1" '(?:-dbu|--dbuser)=\(.*\)')
       ;;
     -dbp* | --dbpass* )
-      db_user=$(expr match "$1" '(?:-dbp|--dbpass)=\(.*\)')
+      db_pass=$(expr match "$1" '(?:-dbp|--dbpass)=\(.*\)')
       ;;
     -dm* | --drushmake* )
       drush_makefile=$(expr match "$1" '(?:-dm|--drushmake)="{0,1}\(.*\)"{0,1}')
@@ -59,13 +66,13 @@ while [ "$1" != "" ]; do
       site_name=$(expr match "$1" '(?:-sn|--site-name)="{0,1}\(.*\)"{0,1}')
       ;;
     -sa* | --site-acct* )
-      site_acct=$(expr match "$1" '(?:-sa|--site-acct)=\(.*\)')
+      site_admin_acct=$(expr match "$1" '(?:-sa|--site-acct)=\(.*\)')
       ;;
     -sp* | --site-pass* )
-      site_pass=$(expr match "$1" '(?:-sp|--site-pass)=\(.*\)')
+      site_admin_pass=$(expr match "$1" '(?:-sp|--site-pass)=\(.*\)')
       ;;
     -nv | --no-vhost )
-      no_vhost=1
+      create_vhost=0
       ;;
     -d | --defaults )
       all_defaults=1
@@ -76,27 +83,76 @@ done
 
 
 ##### FUNCTIONS
-function check_database_exists
-{
+function color_coded_message() {
+  normal=$(tput sgr0)
+  if [[ "${2}" == "error" ]]; then
+    status_color=$(tput setaf 1)
+  elif [[ "${2}" == "warning" ]]; then
+    status_color=$(tput setaf 3)
+  else
+    status_color=$(tput setaf 2)
+  fi
+  status_msg="${status_color}[${2}]${normal}"
+
+  columns=$(tput cols)
+  right_position=$(expr ${columns} - ${#1} + ${#2})
+  printf "%s%${right_position}s\n" "$1" "$status_msg"
+  # printf "%109s\n" "$status_msg"
+}
+
+
+function check_database {
   # Assign our test for the given database to a variable
-  database_present=$(mysql -uroot -p${db_root_pass} -e "show databases like '$db_name'")
+  database_present=$(mysql -u${db_root_user} -p${db_root_pass} -e "show databases like '$db_name'")
+  # If there is already a database present with the given name, prompt the user for handling
   if [[ $database_present ]]; then
-    echo "ERROR: A database with the name $db_name already exists."
-    # Prompt for a new database name and assign it to the same variable
-    db_name=
-    while [[ $db_name = "" ]]; do
-      read -p "Enter a new database name: " db_name
-    done
-    # Re-run this function to test the newly given database name
-    check_database_exists
+    color_coded_message "A database with the name '$db_name' already exists." "warning"
+    read -p "You will be prompted to DROP the tables in the database later. Do you want to continue? (y/n) " yn
+    case $yn in
+      [!yY] )
+        # Prompt for a new database name and assign it to the same variable
+        db_name=
+        while [[ $db_name = "" ]]; do
+          read -p "Enter a new database name: " db_name
+        done
+        # Re-run this function to test the newly given database name
+        check_database_exists
+        ;;
+    esac;
   fi
 }
 
-function check_database_user_exists
-{
-  user_present=$(mysql -uroot -p${db_root_pass} -e "use mysql; SELECT user FROM user WHERE user='$db_user';")
-  if [[ $user_present ]]; then
-    read -p "The user $db_user already exists in the database. Continue using this user? (y/n) " yn
+
+function database_password_prompt {
+  read -p "Enter the password for user '$db_user': " db_pass
+}
+
+
+function check_database_user_password {
+
+  # If the database password is blank then we need to immediately prompt for the user to enter the password
+  if [[ "$db_pass" == "" ]]; then
+    database_password_prompt
+  fi
+
+  # Check the given username and password (whether given when running the script or from the above prompt)
+  # 2>/dev/null is added at the end so that no information is displayed to the user
+  password_check=$(mysql -u$db_user -p$db_pass -e "show databases;" 2>/dev/null)
+  # If the check above fails, then we need to tell the user and prompt them to enter the password again
+  if [[ ! $password_check ]]; then
+    color_coded_message "The password entered does not match the user." "error"
+    database_password_prompt
+    check_database_user_password
+  fi
+}
+
+
+function check_database_user {
+  # Check to see if the given database user already exists
+  user_present=$(mysql -u${db_root_user} -p${db_root_pass} -e "use mysql; SELECT user FROM user WHERE user='$db_user';")
+  if [[ $user_present != "" ]]; then
+    # Prompt the user if the database user given already exists.
+    read -p "The user $db_user already exists in the database. Do you want to continue? (y/n): " yn
     case $yn in
       [!yY] )
         db_user=
@@ -104,36 +160,86 @@ function check_database_user_exists
           read -p "Name of database user to create: " db_user
         done
         # Re-run this function to test the newly given user
-        check_database_user_exists
+        check_database_user
         ;;
+      * )
+        # Check the database password with the database user given
+        check_database_user_password
     esac;
+  else
+    database_password_prompt
+    echo "The database user '$db_user' has been created"
+    # Create the database user with the name and password given
+    $(mysql -u${db_root_user} -p${db_root_pass} -e "GRANT ALL PRIVILEGES ON ${db_name}.* TO ${db_user}@${db_loc} IDENTIFIED BY '${db_pass}'")
   fi
 }
 
-function create_database
-{
-  sql="CREATE DATABASE IF NOT EXISTS $db_name; GRANT ALL ON $db_name.* TO '$db_user'@'localhost' IDENTIFIED BY '$db_pass'; FLUSH PRIVILEGES;"
-  $(which mysql) -uroot -p${db_root_pass} -e "$sql"
+function pre_install_confirmation {
+  # We want to print the real path that Drupal will be installed in if it is set to the current directory
+  if [[ $drupal_dest == "." ]]; then
+    display_drupal_dest=$(pwd);
+  else
+    display_drupal_dest=$drupal_dest
+  fi
+
+  echo ""
+  echo "*******************************************************************"
+  echo "Below are the settings that will be used to setup this installation"
+  echo ""
+  echo "DATABASE"
+  echo "--------"
+  echo "  User:     ${db_user}"
+  echo "  Password: ${db_pass}"
+  echo "  Location: ${db_loc}"
+  echo ""
+  echo "DRUPAL SITE"
+  echo "-----------"
+  echo "  Admin username: ${site_admin_acct}"
+  echo "  Admin password: ${site_admin_pass}"
+  echo "  Profile:        ${profile_name}"
+  echo "  Site Name:      ${site_name}"
+  echo "  URL:            ${domain_name}.lc"
+  echo ""
+  echo "SYSTEM"
+  echo "------"
+  echo "  Path:     ${display_drupal_dest}"
+  echo "  Makefile: ${drush_makefile}"
+  echo ""
+  echo "*******************************************************************"
+  echo ""
+  read -p "Do you want to continue the installation using these settings? (y/n) " yn
+
+  case $yn in
+    [!yY] )
+      color_coded_message "The installation has aborted. No files or settings were altered!" "ok"
+      exit;
+      ;;
+  esac;
 }
 
-function drupal_download
-{
+function drupal_download {
   echo '*********************************'
   echo 'Drupal is now being downloaded...'
   $(drush make $drush_makefile $drupal_dest)
 }
 
-function drupal_install
-{
+function drupal_install {
   echo '********************************'
   echo 'Drupal is now being installed...'
-  $(drush site-install $drush_makefile --db-url=mysql://$db_user:$db_pass@localhost/$db_name --site-name="$site_name" --account-name=$site_acct --account-pass=$site_pass)
+  # We need to make sure that we are in the Drupal install directory
+  cd ${drupal_dest}
+  # For some reason using command substitution ($(...)) doesn't work here ... ??
+  drush site-install $profile_name --db-url=mysql://$db_user:$db_pass@${db_loc}/$db_name --site-name="$site_name" --account-name=$site_admin_acct --account-pass=$site_admin_pass
 }
 
-function create_vhost
-{
+function restart_httpd {
+  echo "To restart the httpd service you will need to enter the root password."
+  su -c"service httpd restart"
+}
+
+function create_vhost_record {
   # Create vhost as long as user did not say not to
-  if [ "$no_vhost" == "0" ]; then
+  if [ "$create_vhost" == "1" ]; then
     # Get the drupal_dest, if it's the current directory (.) we need to get the actual path for vhost_template
     # We don't do this check in confirming that the user wants to install Drupal in the current directory because
     # if we are not going to create a vhost then getting the actual directory isn't necessary
@@ -150,17 +256,57 @@ function create_vhost
     #       A single forward slash (/) like in the line above dictates that we want to replace only the first occurance
     vhost_value="${vhost_value//\{\{URL\}\}/$domain_name}"
 
-    echo "The vhost record is now being recorded..."
     echo "$vhost_value" >>$vhost_file
-    # su -c'service httpd restart'
+
+    echo "The vhost record has been written!"
+    read -p "Restart httpd service to update your changes? (y/n): " yn
+    # We check for not y so that all answers EXCEPT for y or Y explicitly get treated as NO
+    case $yn in
+      [!yY] )
+        read -p "The changes won't be usable until you restart the service. Do you want to continue? (y/n): " yn
+        case $yn in
+          [!yY] )
+            restart_httpd
+            ;;
+        esac;
+        ;;
+      * )
+        restart_httpd
+        ;;
+    esac;    
   fi 
 }
 
-function display_help
-{
+function display_help {
   echo "This will eventually display help text ... yay!"
   exit;
 }
+
+function final_steps {
+  # Make sure we are in the correct directory that Drupal was installed in
+  cd ${drupal_dest}
+
+  # For some reason the default permissions cause a 500 Internal Server Error
+  # This is a quick fix until I find out if there is something setup wrong on my dev server
+  $(find . -type f -exec chmod u=rw,g=r,o=r '{}' \;);
+  $(find . -type d -exec chmod u=rwx,g=rx,o=rx '{}' \;)
+
+  # For some reason drush site-install doesn't set the right username and password
+  # so we are using this drush command to set it to what the user requested
+  $(drush upwd ${site_admin_acct} --password=${site_admin_pass})
+}
+
+function post_install_confirmation {
+  echo "************************************************************************"
+  echo ""
+  echo " You may now access your site at: http://${domain_name}.lc"
+  echo "     Username: ${site_admin_acct}"
+  echo "     Password: ${site_admin_pass}"
+  echo ""
+  echo "****************************  JOSHUA 24:15  ****************************"
+  echo ""
+}
+
 
 
 # CHECK IF HELP IS REQUESTED FIRST THING SO THAT NOTHING ELSE GETS PROCESSED
@@ -168,39 +314,47 @@ if [ "$display_help" == "1" ]; then
   display_help
 fi
 
-# GATHER INFORMATION FROM THE USER
 
-# If a --dbname parameter was not passed we need to ask for the name of the database to create
+
+####################################
+# GATHER INFORMATION FROM THE USER #
+####################################
+
+# If a --dbname parameter was not passed we need to ask for the name of the database to use
 if [ "$db_name" == "" ]; then
   db_name=
   while [[ $db_name = "" ]]; do
-    read -p "Name of database to create: " db_name
+    read -p "Name of database to use: " db_name
   done
 fi
-# Check the name of the database so that if the database already exists we don't go any further
-check_database_exists
+# Check to see if the database exists here so that we can prompt the user depending on the outcome
+check_database
 
-# Check to make sure that the user wants to use the root database user
-if [ "$db_user" == "root" ]; then
-  read -p "You are going to use the root database user for this site. Are you sure? (y/n) " yn
+# If a db_user hasn't been set, then we will ask if the user wants to use root
+if [ "$db_user" == "" ] || [ "$db_user" == "$db_root_user" ] && [ "$all_defaults" == "0" ]; then
+  read -p "You are going to use the root database user for this site. Do you want to continue? (y/n): " yn
   case $yn in
     [!yY] )
       db_user=
       while [[ $db_user = "" ]]; do
         read -p "Name of database user: " db_user
       done
-      check_database_user_exists
+      check_database_user
       ;;
+    * )
+      # Set the user to the root user since we are going to be using the root user
+      db_user=$db_root_user
+      # and also set the password to the root password
+      db_pass=$db_root_pass
   esac;
 fi
 
 
-# We need to check to see if the db_user was passed in.
-# If so, we need to make sure that a password was sent in as well.
-if [ "$db_user" != 'root' ]; then
+# We need to make sure that we have a db_pass set
+if [ "$db_pass" == "" ]; then
   db_pass=
   while [[ $db_pass = "" ]]; do
-    read -p "Password for database user $db_user: " db_pass
+    read -p "Password for database user '$db_user': " db_pass
   done
 fi
 
@@ -210,7 +364,7 @@ fi
 ### AND the user has not declared a path using --dest
 ### AND the user didn't set the --defaults flag to use all defaults
 if [ "$drupal_dest" == '.' ] && [ "$user_dest" == "0" ] && [ "$all_defaults" == "0" ]; then
-  read -p "You are going to install Drupal in the current directory. Are you sure? (y/n) " yn
+  read -p "You are going to install Drupal in the current directory. Do you want to continue? (y/n): " yn
   case $yn in
     [!yY] )
       drupal_dest=
@@ -233,7 +387,7 @@ fi
 
 # Items to handle before we can setup a vhost record
 # Ask for the domain name as long as we are supposed to be setting up a vhost
-if [ "$no_vhost" == "0" ]; then
+if [ "$create_vhost" == "1" ]; then
   # Prompt the user for the domain to use for the site
   domain_name=
   while [[ $domain_name = "" ]]; do
@@ -244,12 +398,15 @@ fi
 
 ##########################
 
-
-# # CREATE A DATABASE
-# create_database
-# # RUN DRUSH MAKE
-# drupal_download
-# # INSTALL DRUPAL
-# drupal_install
+# CONFIRM SETTINGS GIVEN BY USER
+pre_install_confirmation
+# RUN DRUSH MAKE
+drupal_download
+# INSTALL DRUPAL
+drupal_install
 # CREATE VHOST RECORD
-create_vhost
+create_vhost_record
+# FINAL STEPS TO GET EVERYTHING UP AND RUNNING!
+final_steps
+# DISPLAY USEFUL SETTINGS AFTER INSTALL
+post_install_confirmation
