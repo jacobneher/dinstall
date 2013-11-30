@@ -55,25 +55,28 @@ while [ "$1" != "" ]; do
       display_help=1
       ;;
     -dbn* | --dbname* )
-      db_name=$(expr match "$1" '(?:-dbn|--dbname)=\(.*\)')
+      db_name=$(echo ${1}| cut -d'=' -f 2)
       ;;
     -dbu* | --dbuser* )
-      db_user=$(expr match "$1" '(?:-dbu|--dbuser)=\(.*\)')
+      db_user=$(echo ${1}| cut -d'=' -f 2)
       ;;
     -dbp* | --dbpass* )
-      db_pass=$(expr match "$1" '(?:-dbp|--dbpass)=\(.*\)')
+      db_pass=$(echo ${1}| cut -d'=' -f 2)
       ;;
     -dm* | --drushmake* )
-      drush_makefile=$(expr match "$1" '(?:-dm|--drushmake)="{0,1}\(.*\)"{0,1}')
+      drush_makefile=$(echo ${1}| cut -d'=' -f 2)
       ;;
     -sn* | --site-name* )
-      site_name=$(expr match "$1" '(?:-sn|--site-name)="{0,1}\(.*\)"{0,1}')
+      site_name=$(echo ${1}| cut -d'=' -f 2)
+      ;;
+    -dom* | --domain* )
+      domain_name=$(echo ${1}| cut -d'=' -f 2)
       ;;
     -sa* | --site-acct* )
-      site_admin_acct=$(expr match "$1" '(?:-sa|--site-acct)=\(.*\)')
+      site_admin_acct=$(echo ${1}| cut -d'=' -f 2)
       ;;
     -sp* | --site-pass* )
-      site_admin_pass=$(expr match "$1" '(?:-sp|--site-pass)=\(.*\)')
+      site_admin_pass=$(echo ${1}| cut -d'=' -f 2)
       ;;
     -nv | --no-vhost )
       create_vhost=0
@@ -102,9 +105,7 @@ function color_coded_message() {
   columns=$(tput cols)
   right_position=$(expr ${columns} - ${#1} + ${#2})
   printf "%s%${right_position}s\n" "$1" "$status_msg"
-  # printf "%109s\n" "$status_msg"
 }
-
 
 function check_database {
   # Assign our test for the given database to a variable
@@ -127,11 +128,9 @@ function check_database {
   fi
 }
 
-
 function database_password_prompt {
   read -p "Enter the password for user '$db_user': " db_pass
 }
-
 
 function check_database_user_password {
 
@@ -150,7 +149,6 @@ function check_database_user_password {
     check_database_user_password
   fi
 }
-
 
 function check_database_user {
   # Check to see if the given database user already exists
@@ -392,7 +390,7 @@ fi
 
 # Items to handle before we can setup a vhost record
 # Ask for the domain name as long as we are supposed to be setting up a vhost
-if [ "$create_vhost" == "1" ]; then
+if [ "$create_vhost" == "1" ] && [ "$domain_name" == "" ]; then
   # Prompt the user for the domain to use for the site
   domain_name=
   while [[ $domain_name = "" ]]; do
@@ -401,7 +399,7 @@ if [ "$create_vhost" == "1" ]; then
 fi
 
 
-##########################
+###############################################
 
 # CONFIRM SETTINGS GIVEN BY USER
 pre_install_confirmation
