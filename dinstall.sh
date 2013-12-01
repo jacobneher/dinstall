@@ -43,7 +43,8 @@ drupal_dest=.
 
 
 ##### PARSE ARGUMENTS
-if [[ "$1" != "" ]]; then
+# Make sure that an argument has been passed and it's not one that starts with - (i.e. -dbn or --dbname)
+if [[ "$1" != "" ]] && [[ "${1:0:1}" != "-" ]]; then
   drupal_dest=${www_root}/${1}
   # We need to call shift so that we can get any other arguments sent in
   shift;
