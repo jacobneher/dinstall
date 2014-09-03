@@ -16,7 +16,7 @@ db_root_user=root
 # The root password for the database
 db_root_pass=mysql
 # The location of the drushmake file
-drush_makefile="/Volumes/Home/Jacob/Web Development/Drush Makefiles/slate.make"
+drush_makefile="/Volumes/Home/Jacob/Web Development/Drush Makefiles/slate/slate.make"
 # The name of the profile to use
 profile_name=bedrock
 # The default administration username to use for the Drupal site
@@ -196,7 +196,6 @@ function pre_install_confirmation {
   echo "  Admin password: ${site_admin_pass}"
   echo "  Profile:        ${profile_name}"
   echo "  Site Name:      ${site_name}"
-  echo "  URL:            ${domain_name}.lc"
   echo ""
   echo "SYSTEM"
   echo "------"
@@ -230,51 +229,6 @@ function drupal_install {
   drush site-install $profile_name --db-url=mysql://$db_user:$db_pass@${db_loc}/$db_name --site-name="$site_name" --account-name=$site_admin_acct --account-pass=$site_admin_pass
 }
 
-function restart_httpd {
-  echo "To restart the httpd service you will need to enter the root password."
-  su -c"service httpd restart"
-}
-
-function create_vhost_record {
-  # Create vhost as long as user did not say not to
-  if [ "$create_vhost" == "1" ]; then
-    # Get the drupal_dest, if it's the current directory (.) we need to get the actual path for vhost_template
-    # We don't do this check in confirming that the user wants to install Drupal in the current directory because
-    # if we are not going to create a vhost then getting the actual directory isn't necessary
-    if [ "$drupal_dest" == '.' ]; then
-      drupal_dest=$(pwd)
-    fi
-
-    # Get the contents of our vhost template file and assign it to a variable
-    vhost_value=$(<$vhost_template)
-    # Replace the first instance (there should only be one anyway) of {{DIRECTORY}} in the variable
-    vhost_value="${vhost_value/\{\{DIRECTORY\}\}/$drupal_dest}"
-    # Replace ALL instances of {{URL}} in the variable
-    # NOTE: The double forward slash (//) in the line below dictates that we want to replace ALL occurances
-    #       A single forward slash (/) like in the line above dictates that we want to replace only the first occurance
-    vhost_value="${vhost_value//\{\{URL\}\}/$domain_name}"
-
-    echo "$vhost_value" >>$vhost_file
-
-    echo "The vhost record has been written!"
-    read -p "Restart httpd service to update your changes? (y/n): " yn
-    # We check for not y so that all answers EXCEPT for y or Y explicitly get treated as NO
-    case $yn in
-      [!yY] )
-        read -p "The changes won't be usable until you restart the service. Do you want to continue? (y/n): " yn
-        case $yn in
-          [!yY] )
-            restart_httpd
-            ;;
-        esac;
-        ;;
-      * )
-        restart_httpd
-        ;;
-    esac;
-  fi
-}
-
 function display_help {
   echo "This will eventually display help text ... yay!"
   exit;
@@ -297,7 +251,10 @@ function final_steps {
 function post_install_confirmation {
   echo "************************************************************************"
   echo ""
-  echo " You may now access your site at: http://${domain_name}.lc"
+  echo " You may now access your site!"
+  echo ""
+  echo "     Use this path when setting up AMPPS: $(pwd)"
+  echo ""
   echo "     Username: ${site_admin_acct}"
   echo "     Password: ${site_admin_pass}"
   echo ""
@@ -383,17 +340,6 @@ if [ "$site_name" == "" ]; then
 fi
 
 
-# Items to handle before we can setup a vhost record
-# Ask for the domain name as long as we are supposed to be setting up a vhost
-if [ "$create_vhost" == "1" ] && [ "$domain_name" == "" ]; then
-  # Prompt the user for the domain to use for the site
-  domain_name=
-  while [[ $domain_name = "" ]]; do
-    read -p "Enter the domain name (WITHOUT TLD) for this site: " domain_name
-  done
-fi
-
-
 ###############################################
 
 # CONFIRM SETTINGS GIVEN BY USER
@@ -402,8 +348,6 @@ pre_install_confirmation
 drupal_download
 # INSTALL DRUPAL
 drupal_install
-# CREATE VHOST RECORD
-create_vhost_record
 # FINAL STEPS TO GET EVERYTHING UP AND RUNNING!
 final_steps
 # DISPLAY USEFUL SETTINGS AFTER INSTALL
