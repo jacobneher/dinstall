@@ -1,11 +1,6 @@
 #!/bin/bash
 
 ##   VERSION: 0.1
-#################################################################################################################
-# NOTES
-# The user running this script must be able to write to the vhost file (location of vhost_file variable below)!
-#
-#################################################################################################################
 
 ##### CONFIGURABLE DEFAULTS
 # www root path
@@ -19,9 +14,9 @@ db_loc=localhost
 # The root username for the database
 db_root_user=root
 # The root password for the database
-db_root_pass=blue5.houses
+db_root_pass=mysql
 # The location of the drushmake file
-drush_makefile=/var/www/drush-makefiles/slate/slate.make
+drush_makefile="/Volumes/Home/Jacob/Web Development/Drush Makefiles/slate.make"
 # The name of the profile to use
 profile_name=bedrock
 # The default administration username to use for the Drupal site
@@ -38,7 +33,6 @@ site_admin_pass=Jd4ms!
 display_help=0
 user_dest=0
 all_defaults=0
-create_vhost=1
 drupal_dest=.
 
 
@@ -224,7 +218,7 @@ function pre_install_confirmation {
 function drupal_download {
   echo '*********************************'
   echo 'Drupal is now being downloaded...'
-  $(drush make $drush_makefile $drupal_dest)
+  $(drush make "$drush_makefile" "$drupal_dest")
 }
 
 function drupal_install {
@@ -277,8 +271,8 @@ function create_vhost_record {
       * )
         restart_httpd
         ;;
-    esac;    
-  fi 
+    esac;
+  fi
 }
 
 function display_help {
