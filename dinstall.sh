@@ -16,7 +16,7 @@ db_root_user=root
 # The root password for the database
 db_root_pass=mysql
 # The location of the drushmake file
-drush_makefile="/Volumes/Home/Jacob/Web Development/Drush Makefiles/slate/slate.make"
+drush_makefile="/Volumes/Home/Jacob/Web Development/Projects/_Drupal Development/makefiles/slate/slate.make"
 # The name of the profile to use
 profile_name=bedrock
 # The default administration username to use for the Drupal site
